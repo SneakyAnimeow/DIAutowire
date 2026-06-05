@@ -79,6 +79,22 @@ public class PreExistingKeyedComponentImplementation : IPreExistingKeyedComponen
     public string Tag => "KeyedPreExisting";
 }
 
+[DeclareDIComponentType("TestRepository")]
+public class TestRepositoryAttribute : DIComponentAttribute { }
+
+[TestRepositoryAttribute]
+[Autowire("one")]
+public partial class UserProvidedTestComponent
+{
+    public string owo() => "uwu";
+}
+
+[Autowire("two")]
+public class UserProvidedTest2Component : IUserProvidedTestComponent
+{
+    public string owo() => "uwu2";
+}
+
 public class AutowireTests
 {
     [Fact]
@@ -238,5 +254,28 @@ public class AutowireTests
         Assert.Equal("KeyedPreExisting", keyed.Tag);
         // Should not be resolvable without key
         Assert.Null(provider.GetService<IPreExistingKeyedComponent>());
+    }
+
+    [Fact]
+    public void DIAutowire_RegistersImplementationOfGeneratedInterface()
+    {
+        var services = new ServiceCollection();
+        services.DIAutowire();
+        var provider = services.BuildServiceProvider();
+
+        // The generated interface is IUserProvidedTestComponent
+        var one = provider.GetKeyedService<IUserProvidedTestComponent>("one");
+        var two = provider.GetKeyedService<IUserProvidedTestComponent>("two");
+
+        Assert.NotNull(one);
+        Assert.IsType<UserProvidedTestComponent>(one);
+        Assert.Equal("uwu", one.owo());
+
+        Assert.NotNull(two);
+        Assert.IsType<UserProvidedTest2Component>(two);
+        Assert.Equal("uwu2", two.owo());
+
+        // Should not be resolvable via concrete type
+        Assert.Null(provider.GetService<UserProvidedTest2Component>());
     }
 }
