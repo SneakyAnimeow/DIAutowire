@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+      <ProjectReference Include="DISourceGenerator\DISourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="DISourceGenerator\**" />
+        <EmbeddedResource Remove="DISourceGenerator\**" />
+        <None Remove="DISourceGenerator\**" />
+        <Compile Remove="DIAutowire.Tests\**" />
+        <EmbeddedResource Remove="DIAutowire.Tests\**" />
+        <None Remove="DIAutowire.Tests\**" />
+    </ItemGroup>
+</Project>
