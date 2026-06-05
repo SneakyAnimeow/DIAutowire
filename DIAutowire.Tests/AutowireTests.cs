@@ -16,25 +16,43 @@ public partial class CustomAdapter
     public string Name => "TestAdapter";
 }
 
+// Classes with [DIComponent] + [Autowire] get interface generation AND DI registration
+[DIComponent]
 [Autowire(ServiceLifetime.Singleton)]
 public partial class SingletonService
 {
     public string Data { get; set; } = "SingletonData";
 }
 
+[DIComponent]
 [Autowire(ServiceLifetime.Scoped)]
 public partial class ScopedService
 {
 }
 
+[DIComponent]
 [Autowire(ServiceLifetime.Transient)]
 public partial class TransientService
 {
 }
 
+[DIComponent]
 [Autowire("keyed-service", ServiceLifetime.Transient)]
 public partial class KeyedTransientService
 {
+}
+
+// Classes with ONLY [Autowire] get self-registration, no interface generation
+[Autowire(ServiceLifetime.Scoped)]
+public class SelfRegisteredService
+{
+    public string Value => "SelfRegistered";
+}
+
+[Autowire("keyed-self", ServiceLifetime.Transient)]
+public class KeyedSelfRegisteredService
+{
+    public string Value => "KeyedSelf";
 }
 
 public class AutowireTests
@@ -112,5 +130,32 @@ public class AutowireTests
         
         Assert.NotNull(adapter);
         Assert.Equal("TestAdapter", adapter.Name);
+    }
+
+    [Fact]
+    public void DIAutowire_RegistersSelfService_WhenNoComponent()
+    {
+        var services = new ServiceCollection();
+        services.DIAutowire();
+        var provider = services.BuildServiceProvider();
+
+        var service = provider.GetService<SelfRegisteredService>();
+
+        Assert.NotNull(service);
+        Assert.Equal("SelfRegistered", service.Value);
+    }
+
+    [Fact]
+    public void DIAutowire_RegistersKeyedSelfService_WhenNoComponent()
+    {
+        var services = new ServiceCollection();
+        services.DIAutowire();
+        var provider = services.BuildServiceProvider();
+
+        var keyedService = provider.GetKeyedService<KeyedSelfRegisteredService>("keyed-self");
+
+        Assert.NotNull(keyedService);
+        Assert.Equal("KeyedSelf", keyedService.Value);
+        Assert.Null(provider.GetService<KeyedSelfRegisteredService>());
     }
 }

@@ -8,7 +8,7 @@
 
         <!-- Package Metadata -->
         <PackageId>DIAutowire</PackageId>
-        <Version>1.0.0</Version>
+        <Version>1.0.1</Version>
         <Authors>SneakyAnimeow</Authors>
         <Description>A fast and lightweight Dependency Injection autowiring library utilizing C# Source Generators.</Description>
         <PackageLicenseFile>LICENSE</PackageLicenseFile>

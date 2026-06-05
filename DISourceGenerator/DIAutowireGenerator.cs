@@ -62,24 +62,41 @@ public class DIAutowireGenerator : IIncrementalGenerator
                 var hasDiComponent = false;
                 foreach (var attr in classSymbol.GetAttributes())
                 {
-                    if ((attr.AttributeClass == null || !InheritsFrom(attr.AttributeClass,
-                            "DIAutowire.Attributes.Interface.DIComponentAttribute")) && attr.AttributeClass is not
-                            { Name: "AutowireAttribute" })
+                    if (attr.AttributeClass == null || !InheritsFrom(attr.AttributeClass,
+                            "DIAutowire.Attributes.Interface.DIComponentAttribute"))
                         continue;
                     hasDiComponent = true;
                     break;
                 }
 
-                // Fallback for generated attributes in the same compilation
+                // Fallback for generated attributes in the same compilation:
+                // scan for DeclareDIComponentType("X") to build the set of valid names
                 if (!hasDiComponent)
+                {
+                    var declaredNames = new HashSet<string>();
+                    foreach (var tree in ctx.SemanticModel.Compilation.SyntaxTrees)
+                    foreach (var attrSyntax in tree.GetRoot().DescendantNodes().OfType<AttributeSyntax>())
+                    {
+                        var attrName = attrSyntax.Name.ToString();
+                        if (attrName is not ("DeclareDIComponentType" or "DeclareDIComponentTypeAttribute"))
+                            continue;
+                        if (attrSyntax.ArgumentList?.Arguments.Count > 0 &&
+                            attrSyntax.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax literal)
+                            declaredNames.Add(literal.Token.ValueText);
+                    }
+
+                    // Also always include the built-in DIComponent
+                    declaredNames.Add("DIComponent");
+
                     foreach (var attrList in classSyntax.AttributeLists)
                     foreach (var name in attrList.Attributes.Select(attr => attr.Name.ToString()))
                     {
-                        if (name is not ("Service" or "Component" or "Repository"))
+                        if (!declaredNames.Contains(name))
                             continue;
                         hasDiComponent = true;
                         break;
                     }
+                }
 
                 if (!hasDiComponent)
                     return null;
@@ -225,11 +242,44 @@ public class DIAutowireGenerator : IIncrementalGenerator
                     }
                 }
 
+                // Check if the class also has a DIComponent attribute (or derivative)
+                var hasDiComponent = classSymbol.GetAttributes().Any(a =>
+                    a.AttributeClass != null && InheritsFrom(a.AttributeClass,
+                        "DIAutowire.Attributes.Interface.DIComponentAttribute"));
+
+                // Fallback for generated attributes in the same compilation
+                if (!hasDiComponent)
+                {
+                    var declaredNames = new HashSet<string>();
+                    foreach (var tree in ctx.SemanticModel.Compilation.SyntaxTrees)
+                    foreach (var attrSyntax in tree.GetRoot().DescendantNodes().OfType<AttributeSyntax>())
+                    {
+                        var attrName = attrSyntax.Name.ToString();
+                        if (attrName is not ("DeclareDIComponentType" or "DeclareDIComponentTypeAttribute"))
+                            continue;
+                        if (attrSyntax.ArgumentList?.Arguments.Count > 0 &&
+                            attrSyntax.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax literal)
+                            declaredNames.Add(literal.Token.ValueText);
+                    }
+
+                    declaredNames.Add("DIComponent");
+
+                    var classSyntax = (ClassDeclarationSyntax)ctx.TargetNode;
+                    foreach (var attrList in classSyntax.AttributeLists)
+                    foreach (var name in attrList.Attributes.Select(a => a.Name.ToString()))
+                    {
+                        if (!declaredNames.Contains(name))
+                            continue;
+                        hasDiComponent = true;
+                        break;
+                    }
+                }
+
                 var ns = classSymbol.ContainingNamespace.ToDisplayString();
                 return new AutowireInfo
                 {
                     ClassName = classSymbol.Name, Namespace = ns, Lifetime = lifetime,
-                    ImplementationName = implementationName
+                    ImplementationName = implementationName, HasDiComponent = hasDiComponent
                 };
             }
         ).Collect();
@@ -258,10 +308,22 @@ public class DIAutowireGenerator : IIncrementalGenerator
                     2 => "Transient",
                     _ => "Scoped"
                 };
-                sb.AppendLine(
-                    string.IsNullOrEmpty(cls.ImplementationName)
-                        ? $"        services.Add{lifetimeStr}<global::{cls.Namespace}.I{cls.ClassName}, global::{cls.Namespace}.{cls.ClassName}>();"
-                        : $"        services.AddKeyed{lifetimeStr}<global::{cls.Namespace}.I{cls.ClassName}, global::{cls.Namespace}.{cls.ClassName}>(\"{cls.ImplementationName}\");");
+                if (cls.HasDiComponent)
+                {
+                    // Interface-based registration (class has DIComponent, so an interface is generated)
+                    sb.AppendLine(
+                        string.IsNullOrEmpty(cls.ImplementationName)
+                            ? $"        services.Add{lifetimeStr}<global::{cls.Namespace}.I{cls.ClassName}, global::{cls.Namespace}.{cls.ClassName}>();"
+                            : $"        services.AddKeyed{lifetimeStr}<global::{cls.Namespace}.I{cls.ClassName}, global::{cls.Namespace}.{cls.ClassName}>(\"{cls.ImplementationName}\");");
+                }
+                else
+                {
+                    // Self-registration (class only has Autowire, no interface generation)
+                    sb.AppendLine(
+                        string.IsNullOrEmpty(cls.ImplementationName)
+                            ? $"        services.Add{lifetimeStr}<global::{cls.Namespace}.{cls.ClassName}>();"
+                            : $"        services.AddKeyed{lifetimeStr}<global::{cls.Namespace}.{cls.ClassName}>(\"{cls.ImplementationName}\");");
+                }
             }
 
             sb.AppendLine("        return services;");
@@ -299,5 +361,6 @@ public class DIAutowireGenerator : IIncrementalGenerator
         public string Namespace { get; set; } = string.Empty;
         public int Lifetime { get; set; }
         public string ImplementationName { get; set; } = string.Empty;
+        public bool HasDiComponent { get; set; }
     }
 }
