@@ -13,6 +13,7 @@ public partial class ResolverTargetService
     public Guid Id { get; } = Guid.NewGuid();
 }
 
+[DIComponent]
 [Autowire("keyed-target")]
 public partial class KeyedResolverTargetService
 {
