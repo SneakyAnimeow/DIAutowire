@@ -55,6 +55,18 @@ public class KeyedSelfRegisteredService
     public string Value => "KeyedSelf";
 }
 
+[DIComponent]
+public interface IPreExistingComponent
+{
+    string Data { get; }
+}
+
+[Autowire(ServiceLifetime.Transient)]
+public class PreExistingComponentImplementation : IPreExistingComponent
+{
+    public string Data => "PreExistingData";
+}
+
 public class AutowireTests
 {
     [Fact]
@@ -157,5 +169,18 @@ public class AutowireTests
         Assert.NotNull(keyedService);
         Assert.Equal("KeyedSelf", keyedService.Value);
         Assert.Null(provider.GetService<KeyedSelfRegisteredService>());
+    }
+
+    [Fact]
+    public void DIAutowire_RegistersPreExistingComponentInterface()
+    {
+        var services = new ServiceCollection();
+        services.DIAutowire();
+        var provider = services.BuildServiceProvider();
+
+        var service = provider.GetService<IPreExistingComponent>();
+
+        Assert.NotNull(service);
+        Assert.Equal("PreExistingData", service.Data);
     }
 }
