@@ -4,12 +4,31 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <IsPackable>true</IsPackable>
+
+        <!-- Package Metadata -->
+        <PackageId>DIAutowire</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>SneakyAnimeow</Authors>
+        <Description>A fast and lightweight Dependency Injection autowiring library utilizing C# Source Generators.</Description>
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/SneakyAnimeow/DIAutowire</RepositoryUrl>
+        <PackageTags>dependency-injection;di;autowire;source-generator;roslyn;codegen</PackageTags>
+
+        <!-- Include generator dll in NuGet package -->
+        <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackSourceGenerator</TargetsForTfmSpecificContentInPackage>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
       <ProjectReference Include="DISourceGenerator\DISourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+        <None Include="LICENSE" Pack="true" PackagePath="\" />
     </ItemGroup>
 
     <ItemGroup>
@@ -20,4 +39,12 @@
         <EmbeddedResource Remove="DIAutowire.Tests\**" />
         <None Remove="DIAutowire.Tests\**" />
     </ItemGroup>
+
+    <!-- Target to copy the source generator assembly into the analyzers/dotnet/cs directory of the package -->
+    <Target Name="PackSourceGenerator" DependsOnTargets="ResolveProjectReferences">
+        <ItemGroup>
+            <TfmSpecificPackageFile Include="$(MSBuildThisFileDirectory)DISourceGenerator\bin\$(Configuration)\netstandard2.0\DISourceGenerator.dll" 
+                                    PackagePath="analyzers/dotnet/cs" />
+        </ItemGroup>
+    </Target>
 </Project>
