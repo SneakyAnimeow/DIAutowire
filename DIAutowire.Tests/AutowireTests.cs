@@ -61,10 +61,22 @@ public interface IPreExistingComponent
     string Data { get; }
 }
 
+[DIComponent]
+public interface IPreExistingKeyedComponent
+{
+    string Tag { get; }
+}
+
 [Autowire(ServiceLifetime.Transient)]
 public class PreExistingComponentImplementation : IPreExistingComponent
 {
     public string Data => "PreExistingData";
+}
+
+[Autowire("pre-existing-keyed", ServiceLifetime.Singleton)]
+public class PreExistingKeyedComponentImplementation : IPreExistingKeyedComponent
+{
+    public string Tag => "KeyedPreExisting";
 }
 
 public class AutowireTests
@@ -172,7 +184,7 @@ public class AutowireTests
     }
 
     [Fact]
-    public void DIAutowire_RegistersPreExistingComponentInterface()
+    public void DIAutowire_RegistersPreExistingDIComponentInterface_ReturnsCorrectType()
     {
         var services = new ServiceCollection();
         services.DIAutowire();
@@ -181,6 +193,50 @@ public class AutowireTests
         var service = provider.GetService<IPreExistingComponent>();
 
         Assert.NotNull(service);
+        Assert.IsType<PreExistingComponentImplementation>(service);
         Assert.Equal("PreExistingData", service.Data);
+    }
+
+    [Fact]
+    public void DIAutowire_PreExistingDIComponentInterface_IsTransient()
+    {
+        var services = new ServiceCollection();
+        services.DIAutowire();
+        var provider = services.BuildServiceProvider();
+
+        var service1 = provider.GetService<IPreExistingComponent>();
+        var service2 = provider.GetService<IPreExistingComponent>();
+
+        Assert.NotNull(service1);
+        Assert.NotNull(service2);
+        Assert.NotSame(service1, service2);
+    }
+
+    [Fact]
+    public void DIAutowire_PreExistingDIComponentInterface_ConcreteTypeNotDirectlyRegistered()
+    {
+        var services = new ServiceCollection();
+        services.DIAutowire();
+        var provider = services.BuildServiceProvider();
+
+        // Concrete type should NOT be directly resolvable — only via the interface
+        var concrete = provider.GetService<PreExistingComponentImplementation>();
+        Assert.Null(concrete);
+    }
+
+    [Fact]
+    public void DIAutowire_RegistersKeyedPreExistingDIComponentInterface()
+    {
+        var services = new ServiceCollection();
+        services.DIAutowire();
+        var provider = services.BuildServiceProvider();
+
+        var keyed = provider.GetKeyedService<IPreExistingKeyedComponent>("pre-existing-keyed");
+
+        Assert.NotNull(keyed);
+        Assert.IsType<PreExistingKeyedComponentImplementation>(keyed);
+        Assert.Equal("KeyedPreExisting", keyed.Tag);
+        // Should not be resolvable without key
+        Assert.Null(provider.GetService<IPreExistingKeyedComponent>());
     }
 }

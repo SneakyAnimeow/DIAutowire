@@ -275,11 +275,56 @@ public class DIAutowireGenerator : IIncrementalGenerator
                     }
                 }
 
+                // Check if any implemented interfaces have [DIComponent] (or derivative)
+                var diComponentInterfaces = new List<string>();
+                if (!hasDiComponent)
+                {
+                    foreach (var iface in classSymbol.AllInterfaces)
+                    {
+                        var ifaceHasDiComponent = iface.GetAttributes().Any(a =>
+                            a.AttributeClass != null && InheritsFrom(a.AttributeClass,
+                                "DIAutowire.Attributes.Interface.DIComponentAttribute"));
+
+                        // Fallback: check syntax-level attribute names for generated component types
+                        if (!ifaceHasDiComponent)
+                        {
+                            var declaredNames = new HashSet<string>();
+                            foreach (var tree in ctx.SemanticModel.Compilation.SyntaxTrees)
+                            foreach (var attrSyntax in tree.GetRoot().DescendantNodes().OfType<AttributeSyntax>())
+                            {
+                                var attrName = attrSyntax.Name.ToString();
+                                if (attrName is not ("DeclareDIComponentType" or "DeclareDIComponentTypeAttribute"))
+                                    continue;
+                                if (attrSyntax.ArgumentList?.Arguments.Count > 0 &&
+                                    attrSyntax.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax literal)
+                                    declaredNames.Add(literal.Token.ValueText);
+                            }
+                            declaredNames.Add("DIComponent");
+
+                            foreach (var syntaxRef in iface.DeclaringSyntaxReferences)
+                            {
+                                if (syntaxRef.GetSyntax() is not InterfaceDeclarationSyntax ifaceSyntax)
+                                    continue;
+                                foreach (var attrList in ifaceSyntax.AttributeLists)
+                                foreach (var name in attrList.Attributes.Select(a => a.Name.ToString()))
+                                {
+                                    if (declaredNames.Contains(name))
+                                        ifaceHasDiComponent = true;
+                                }
+                            }
+                        }
+
+                        if (ifaceHasDiComponent)
+                            diComponentInterfaces.Add(iface.ToDisplayString());
+                    }
+                }
+
                 var ns = classSymbol.ContainingNamespace.ToDisplayString();
                 return new AutowireInfo
                 {
                     ClassName = classSymbol.Name, Namespace = ns, Lifetime = lifetime,
-                    ImplementationName = implementationName, HasDiComponent = hasDiComponent
+                    ImplementationName = implementationName, HasDiComponent = hasDiComponent,
+                    DIComponentInterfaces = diComponentInterfaces
                 };
             }
         ).Collect();
@@ -315,6 +360,17 @@ public class DIAutowireGenerator : IIncrementalGenerator
                         string.IsNullOrEmpty(cls.ImplementationName)
                             ? $"        services.Add{lifetimeStr}<global::{cls.Namespace}.I{cls.ClassName}, global::{cls.Namespace}.{cls.ClassName}>();"
                             : $"        services.AddKeyed{lifetimeStr}<global::{cls.Namespace}.I{cls.ClassName}, global::{cls.Namespace}.{cls.ClassName}>(\"{cls.ImplementationName}\");");
+                }
+                else if (cls.DIComponentInterfaces.Count > 0)
+                {
+                    // Registration against pre-existing interfaces that have [DIComponent]
+                    foreach (var ifaceName in cls.DIComponentInterfaces)
+                    {
+                        sb.AppendLine(
+                            string.IsNullOrEmpty(cls.ImplementationName)
+                                ? $"        services.Add{lifetimeStr}<global::{ifaceName}, global::{cls.Namespace}.{cls.ClassName}>();"
+                                : $"        services.AddKeyed{lifetimeStr}<global::{ifaceName}, global::{cls.Namespace}.{cls.ClassName}>(\"{cls.ImplementationName}\");");
+                    }
                 }
                 else
                 {
@@ -362,5 +418,6 @@ public class DIAutowireGenerator : IIncrementalGenerator
         public int Lifetime { get; set; }
         public string ImplementationName { get; set; } = string.Empty;
         public bool HasDiComponent { get; set; }
+        public List<string> DIComponentInterfaces { get; set; } = new List<string>();
     }
 }
